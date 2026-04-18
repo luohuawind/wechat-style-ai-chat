@@ -47,16 +47,5 @@ index.html    # 单文件应用，120行代码
 - **停止词配置**：`stop: ["我："]` 防止模型自问自答
 - **自动滚动**：新消息自动滚到底部
 
-## 文件命名建议
 
-```
-niannian-chat.html
-```
 
-或者作为项目：
-
-```
-niannian-ai-chat/
-├── index.html
-└── README.md
-```
