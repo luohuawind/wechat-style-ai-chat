@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>年年 - 微信风格聊天</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  body {
+    background: #EDEDED;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .chat-box {
+    width: 100%;
+    max-width: 420px;
+    height: 90vh;
+    background: #F7F7F7;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    background: #4C7CF6;
+    color: white;
+    padding: 14px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .chat-content {
+    flex: 1;
+    padding: 14px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg {
+    display: flex;
+    max-width: 75%;
+  }
+
+  .msg-user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: #DDD;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .avatar-bot {
+    background: #4C7CF6;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:bold;
+  }
+
+  .bubble {
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 15px;
+    line-height: 1.4;
+    word-wrap: break-word;
+  }
+
+  .msg-user .bubble {
+    background: #95EC69;
+    margin-right: 8px;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg-bot .bubble {
+    background: white;
+    margin-left: 8px;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  .chat-input-area {
+    background: white;
+    padding: 10px 12px;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid #EAEAEA;
+  }
+
+  textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 15px;
+    padding: 10px;
+    background: #F2F2F2;
+    border-radius: 8px;
+    max-height: 80px;
+  }
+
+  button {
+    background: #4C7CF6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    opacity: 0.9;
+  }
+
+  .tip {
+    text-align:center;
+    color:#999;
+    font-size:12px;
+    padding:6px;
+  }
+</style>
+</head>
+
+<body>
+<div class="chat-box">
+  <div class="chat-header">年年</div>
+  <div class="chat-content" id="chatContent"></div>
+  <div class="tip">消息自动保存到本地记忆，永不丢失</div>
+  <div class="chat-input-area">
+    <textarea id="inputText" placeholder="说点什么..."></textarea>
+    <button onclick="sendMsg()">发送</button>
+  </div>
+</div>
+
+<script>
+  const chatContent = document.getElementById('chatContent');
+  const inputText = document.getElementById('inputText');
+
+  // 本地永久记忆
+  let messages = JSON.parse(localStorage.getItem('niannian_chat') || '[]');
+
+  function render() {
+    chatContent.innerHTML = '';
+    messages.forEach(msg => {
+      const div = document.createElement('div');
+      if (msg.role === 'user') {
+        div.className = 'msg msg-user';
+        div.innerHTML = `
+          <div class="avatar"></div>
+          <div class="bubble">${msg.content}</div>
+        `;
+      } else {
+        div.className = 'msg msg-bot';
+        div.innerHTML = `
+          <div class="avatar avatar-bot">年</div>
+          <div class="bubble">${msg.content}</div>
+        `;
+      }
+      chatContent.appendChild(div);
+    });
+    chatContent.scrollTop = chatContent.scrollHeight;
+  }
+
+  async function sendMsg() {
+    const text = inputText.value.trim();
+    if (!text) return;
+
+    // 加入用户消息
+    messages.push({ role: 'user', content: text });
+    inputText.value = '';
+    render();
+
+    // 构造完整记忆上下文
+    let prompt = '';
+    messages.forEach(m => {
+      prompt += (m.role === 'user' ? '我：' : '年年：') + m.content + '\n';
+    });
+    prompt += '年年：';
+
+    try {
+      const res = await fetch('http://localhost:8080/completion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: prompt,
+          temperature: 0.7,
+          n_predict: 1024,
+          stop: ["我："],
+          stream: false
+        })
+      });
+
+      const data = await res.json();
+      const reply = (data.content || '').trim();
+
+      // 保存年年回复
+      messages.push({ role: 'bot', content: reply });
+      localStorage.setItem('niannian_chat', JSON.stringify(messages));
+      render();
+    } catch (e) {
+      messages.push({ role: 'bot', content: '请先启动 llama-server 哦～' });
+      render();
+    }
+  }
+
+  // 回车发送
+  inputText.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMsg();
+    }
+  });
+
+  // 初始加载
+  render();
+</script>
+</body>
+</html>
